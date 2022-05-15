@@ -9,7 +9,6 @@ import pandas_bokeh as pbk
 from plantcv import plantcv as pcv
 import matplotlib
 
-matplotlib.use("Agg")
 
 """Simple processing utilities"""
 
@@ -134,34 +133,35 @@ def do_segmentation(img: np.ndarray, dark_background: bool = True) -> PlantFeatu
         rgb_img=img, channel="a"
     )  # a is green/magenta, b is blue/yellow
 
-    # ... and threshold the blue channel image.
+    # ... also take the blue/yellow image...
+    by_image = pcv.rgb2gray_lab(
+        rgb_img=img, channel="b"
+    )
+
+    # ... and threshold the green/magenta and blue/yellow channel images.
     gm_thresh = pcv.threshold.binary(
         gray_img=gm_image, threshold=115, max_value=255, object_type="dark"
+    )
+    by_thresh = pcv.threshold.binary(
+        gray_img=by_image, threshold=150, max_value=255, object_type="light"
     )
 
     # ... do a quick fill of small objects...
     filled_gm_thresh = pcv.fill(bin_img=gm_thresh, size=100)
+    filled_by_thresh = pcv.fill(bin_img=by_thresh, size=5000)
 
     # Next, XOR these two images and get the resulting mask...
-    # background_area = pcv.logical_xor(bin_img1=hue_blur, bin_img2=filled_gm_thresh)
-    masked = pcv.apply_mask(img=img, mask=filled_gm_thresh, mask_color="white")
+    joined_mask = pcv.logical_or(bin_img1=filled_by_thresh, bin_img2=filled_gm_thresh)
+    masked = pcv.apply_mask(img=img, mask=joined_mask, mask_color="white")
 
     # Next, get the object that is masked from the image...
-    id_objects, obj_hierarchy = pcv.find_objects(img=masked, mask=filled_gm_thresh)
+    id_objects, obj_hierarchy = pcv.find_objects(img=masked, mask=joined_mask)
 
     # ... create the boundingbox and overlay on the image...
     bounding_box = create_central_bounding_box(img)
     region, region_her = overlay_bb(masked, bounding_box)
 
     # ... and keep only the unmasked region in the bounding box...
-    # Inputs:
-    #    img            = img to display kept objects
-    #    roi_contour    = contour of roi, output from any ROI function
-    #    roi_hierarchy  = contour of roi, output from any ROI function
-    #    object_contour = contours of objects, output from pcv.find_objects function
-    #    obj_hierarchy  = hierarchy of objects, output from pcv.find_objects function
-    #    roi_type       = 'partial' (default, for partially inside the ROI), 'cutto', or
-    #                     'largest' (keep only largest contour)
     region_objects, hierarchy, kept_mask, obj_area = pcv.roi_objects(
         img=img,
         roi_contour=region,
@@ -174,6 +174,8 @@ def do_segmentation(img: np.ndarray, dark_background: bool = True) -> PlantFeatu
     )
 
     image_analysis = pcv.analyze_object(img=img, obj=obj, mask=mask, label="default")
+
+    pcv.plot_image(image_analysis)
 
     return PlantFeature(
         plant_obj=None, bg_mask=mask, rgb_image=img, analyzed_image=image_analysis
@@ -197,6 +199,9 @@ def do_color_analysis(
     else:
         title_usage = False
 
+    # Set this to NOT print out anything which always errors heavy
+    matplotlib.use("Agg")
+
     color_analysis_hist = pcv.analyze_color(
         rgb_img=plant_data.rgb_image,
         mask=plant_data.bg_mask,
@@ -212,6 +217,8 @@ def do_color_analysis(
     color_data = color_data.pivot(index=cols[0], columns=cols[1], values=cols[2])
 
     if plot:
-        color_data.plot_bokeh(alpha=0.9, figsize=[700, 700], title=f"Color Spectrum for {plot_title}" * title_usage)
+        color_data[["blue", "blue-yellow", "green", "green-magenta", "red"]].plot_bokeh(alpha=0.9, figsize=[700, 700], title=f"Color Spectrum for {plot_title}" * title_usage)
 
+    # And reset on the way out...
+    matplotlib.use("macosx")
     return color_analysis_hist
