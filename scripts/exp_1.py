@@ -13,7 +13,7 @@ from src import basic_utils
 
 
 if __name__ == "__main__":
-    img_path = root / "resources" / "misc_data" / "first_batch"
+    img_path = root / "resources" / "misc_data" / "first_reference"
     img_type = "jpeg"
     images = basic_utils.load_dir_images(img_path, img_type)
 

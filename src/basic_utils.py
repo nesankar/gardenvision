@@ -134,9 +134,7 @@ def do_segmentation(img: np.ndarray, dark_background: bool = True) -> PlantFeatu
     )  # a is green/magenta, b is blue/yellow
 
     # ... also take the blue/yellow image...
-    by_image = pcv.rgb2gray_lab(
-        rgb_img=img, channel="b"
-    )
+    by_image = pcv.rgb2gray_lab(rgb_img=img, channel="b")
 
     # ... and threshold the green/magenta and blue/yellow channel images.
     gm_thresh = pcv.threshold.binary(
@@ -175,7 +173,7 @@ def do_segmentation(img: np.ndarray, dark_background: bool = True) -> PlantFeatu
 
     image_analysis = pcv.analyze_object(img=img, obj=obj, mask=mask, label="default")
 
-    pcv.plot_image(image_analysis)
+    # pcv.plot_image(image_analysis)
 
     return PlantFeature(
         plant_obj=None, bg_mask=mask, rgb_image=img, analyzed_image=image_analysis
@@ -217,7 +215,12 @@ def do_color_analysis(
     color_data = color_data.pivot(index=cols[0], columns=cols[1], values=cols[2])
 
     if plot:
-        color_data[["blue", "blue-yellow", "green", "green-magenta", "red"]].plot_bokeh(alpha=0.9, figsize=[700, 700], title=f"Color Spectrum for {plot_title}" * title_usage)
+        color_data[["blue", "blue-yellow", "green", "green-magenta", "red"]].plot_bokeh(
+            alpha=0.9,
+            figsize=[700, 700],
+            ylim=[0,13],
+            title=f"Color Spectrum for {plot_title}" * title_usage,
+        )
 
     # And reset on the way out...
     matplotlib.use("macosx")
