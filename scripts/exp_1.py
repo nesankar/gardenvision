@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from tqdm import tqdm
-import concurrent.futures
+import concurrent.futures  # TODO: processing is slow, do it in parallel
 
 """Simple script to explore loading an image and some analyses"""
 
@@ -13,7 +13,7 @@ from src import basic_utils
 
 
 if __name__ == "__main__":
-    img_path = root / "resources" / "misc_data" / "first_reference"
+    img_path = root / "resources" / "misc_data" / "second_reference"
     img_type = "jpeg"
     images = basic_utils.load_dir_images(img_path, img_type)
 
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     )
 
     # extract the plants for each image
-    plants = [basic_utils.do_segmentation(image.image, dark_background=False) for image in tqdm(images)]
+    plants = [basic_utils.do_plant_segmentation(image.image) for image in tqdm(images)]
 
     # plot the colors of the plants in each image
     for i, plant in enumerate(plants):
