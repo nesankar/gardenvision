@@ -14,13 +14,60 @@ import matplotlib
 
 file_dir = Path(__file__)
 root = file_dir.parent.parent
-sys.path.append(root)
+sys.path.append(str(root))
 
-PlantImage = namedtuple("PlantImage", ["image", "name"])
+# PlantImage = namedtuple("PlantImage", ["image", "name"])
 BoxCords = namedtuple("BoxCords", ["ul_corner", "ur_corner", "ll_corner", "lr_corner"])
 PlantFeature = namedtuple(
     "PlantFeature", ["plant_obj", "bg_mask", "rgb_image", "analyzed_image"]
 )
+ReferenceFeature = namedtuple(
+    "ReferenceFeature", ["reference_obj", "bg_mask", "max_pxl_length", "max_in_length"]
+)
+
+
+class PlantImage:
+    """Contain the data for a specific image of a plant."""
+
+    def __init__(
+        self,
+        image: np.ndarray,
+        name: str,
+        reference_obj_max_dim_in: Optional[int] = None,
+    ):
+
+        self.image = image
+        self.name = name
+        self.reference_obj_max_dim_in = reference_obj_max_dim_in
+
+    @property
+    def reference_length(self):
+        if hasattr(self, "_reference_length"):
+            if self._reference_length == 0.0:
+                raise Warning(
+                    "No object length was provided. Using the ._refernce_length attribute is not possible."
+                )
+            return self._reference_length
+        else:
+            self._reference_length = self.get_reference_length()
+            return self._reference_length
+
+    def get_reference_length(self) -> float:
+        """
+        For the image with the reference object, get the reference length of pixels/inch
+        :return: the pixels/inch ratio for the image
+        """
+        if not self.reference_obj_max_dim_in:
+            print(
+                f"\n No reference dimension provided for image: {self.name}. Can not get a reference length."
+            )
+            return 0.0
+
+        reference_feature = find_reference_obj(
+            self.image, self.name, self.reference_obj_max_dim_in
+        )
+
+        return reference_feature.max_pxl_length / reference_feature.max_in_length
 
 
 def load_dir_images(
@@ -100,35 +147,69 @@ def overlay_bb(image: np.ndarray, bounding_box: BoxCords) -> Any:
     return roi1, roi_hierarchy
 
 
-def do_segmentation(img: np.ndarray, dark_background: bool = True) -> PlantFeature:
+def find_reference_obj(
+    plant_img: np.ndarray, image_name: str, max_length_dim_inches: int = 2.0,
+) -> ReferenceFeature:
+    """
+    Perform the segmentation to pull out the reference object in the image. Assumes a blue reference obj.
+
+    :param plant_img: a numpy ndarray defining the image
+    :param image_name: a string uniquely identifying the image
+    :param max_length_dim_inches: a float equal to the longest length/width dimension of the reference obj
+    :return: the reference object extracted.
+    """
+
+    ref_obj_label = f"{image_name}_ref_obj"
+
+    # First take the blue/yellow image...
+    by_image = pcv.rgb2gray_lab(rgb_img=plant_img, channel="b")
+
+    # ... then the green magenta image
+    gm_image = pcv.rgb2gray_lab(
+        rgb_img=plant_img, channel="a"
+    )  # a is green/magenta, b is blue/yellow
+
+    # ... and threshold the green/magenta and blue/yellow channel images.
+    by_thresh = pcv.threshold.binary(
+        gray_img=by_image, threshold=115, max_value=225, object_type="dark"
+    )
+    gm_thresh = pcv.threshold.binary(
+        gray_img=gm_image, threshold=105, max_value=225, object_type="dark"
+    )
+
+    # Now get the object masked by the image.
+    joined_mask = pcv.logical_and(bin_img1=by_thresh, bin_img2=gm_thresh)
+    masked = pcv.apply_mask(img=plant_img, mask=joined_mask, mask_color="white")
+    reference_objects, obj_hierarchy = pcv.find_objects(img=masked, mask=joined_mask)
+
+    # Compose the object
+    obj, mask = pcv.object_composition(
+        img=plant_img, contours=reference_objects, hierarchy=obj_hierarchy
+    )
+
+    pcv.analyze_object(
+        img=plant_img, obj=obj, mask=mask, label=ref_obj_label
+    )  # pcv stores data for each analysis internally via a dict with the "label" as the key
+
+    max_pixel_length = max(
+        [
+            pcv.outputs.observations[ref_obj_label][dimension]["value"]
+            for dimension in ["width", "height"]
+        ]
+    )
+
+    return ReferenceFeature(obj, mask, max_pixel_length, max_length_dim_inches)
+
+
+def do_plant_segmentation(img: np.ndarray) -> PlantFeature:
     """
     Perform the image segmentation pipeline to extract the plant from the background.
 
     :param img: a numpy ndarray defining the image
-    :param dark_background: a boolean defining if the background is darker or lighter than the plant
     :return: the plant object extracted using plantcv
     """
 
-    if dark_background:
-        object_brightness = "light"
-    else:
-        object_brightness = "dark"
-
-    # First, convert the image to get hue values...
-    hue_extraction = pcv.rgb2gray_hsv(rgb_img=img, channel="v")
-
-    # ... then fill the image based on hue...
-    hue_threshold = pcv.threshold.binary(
-        gray_img=hue_extraction,
-        threshold=100,
-        max_value=255,
-        object_type="light",
-    )
-
-    # ... and perform a slight blur.
-    hue_blur = pcv.median_blur(gray_img=hue_threshold, ksize=5)
-
-    # Next, extract a different color family, specifically the green/magenta family...
+    # First, extract different color families, specifically the green/magenta family...
     gm_image = pcv.rgb2gray_lab(
         rgb_img=img, channel="a"
     )  # a is green/magenta, b is blue/yellow
@@ -187,7 +268,7 @@ def do_color_analysis(
     Analyze the color spectrum of an image
     :param plant_data: the namedtuple object that store the extracted image and the mask of the plant in the photo
     :param plot: boolean to define if to plot the results or not
-    :param image_name: name to use for the image when plotting
+    :param plot_title: name to use for the image when plotting
 
     :return: a dataframe of color frequencies
     """
@@ -218,7 +299,7 @@ def do_color_analysis(
         color_data[["blue", "blue-yellow", "green", "green-magenta", "red"]].plot_bokeh(
             alpha=0.9,
             figsize=[700, 700],
-            ylim=[0,13],
+            ylim=[0, 13],
             title=f"Color Spectrum for {plot_title}" * title_usage,
         )
 
