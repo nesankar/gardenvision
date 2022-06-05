@@ -30,3 +30,5 @@ if __name__ == "__main__":
         print(f"The {image.name} plant is {round(image.plant_length_in, 2)} inches by {round(image.plant_width_in, 2)} inches @ max.")
         print("\n")
         image.get_plant_color_spectrum(plot=True)
+
+print("Done")
