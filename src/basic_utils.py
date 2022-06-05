@@ -1,7 +1,7 @@
 import cv2
 import glob
 import sys
-from typing import Union, List, Any, Optional
+from typing import Union, List, Any, Optional, Dict
 from collections import namedtuple
 from pathlib import Path
 import numpy as np
@@ -24,6 +24,14 @@ PlantFeature = namedtuple(
 ReferenceFeature = namedtuple(
     "ReferenceFeature", ["reference_obj", "bg_mask", "max_pxl_length", "max_in_length"]
 )
+ColorThreshold = namedtuple(
+    "ColorTheshold", ["by_threshold", "gm_threshold", "by_obj_type", "gm_obj_type"]
+)
+
+REF_THRESHOLDS: Dict[str, ColorThreshold] = {
+    "blue": ColorThreshold(115, 105, "dark", "dark"),
+    "yellow": ColorThreshold(190, 125, "light", "dark"),
+}
 
 
 def create_central_bounding_box(
@@ -83,7 +91,10 @@ def overlay_bb(image: np.ndarray, bounding_box: BoxCords) -> Any:
 
 
 def find_reference_obj(
-    plant_img: np.ndarray, image_name: str, max_length_dim_inches: int = 2.0,
+    plant_img: np.ndarray,
+    image_name: str,
+    obj_color: str,
+    max_length_dim_inches: float = 2.0,
 ) -> ReferenceFeature:
     """
     Perform the segmentation to pull out the reference object in the image. Assumes a blue reference obj.
@@ -94,7 +105,9 @@ def find_reference_obj(
     :return: the reference object extracted.
     """
 
+    # Get some constants
     ref_obj_label = f"{image_name}_ref_obj"
+    object_thresholds = REF_THRESHOLDS[obj_color]
 
     # First take the blue/yellow image...
     by_image = pcv.rgb2gray_lab(rgb_img=plant_img, channel="b")
@@ -106,14 +119,24 @@ def find_reference_obj(
 
     # ... and threshold the green/magenta and blue/yellow channel images.
     by_thresh = pcv.threshold.binary(
-        gray_img=by_image, threshold=115, max_value=225, object_type="dark"
+        gray_img=by_image,
+        threshold=object_thresholds.by_threshold,
+        max_value=225,
+        object_type=object_thresholds.by_obj_type,
     )
     gm_thresh = pcv.threshold.binary(
-        gray_img=gm_image, threshold=105, max_value=225, object_type="dark"
+        gray_img=gm_image,
+        threshold=object_thresholds.gm_threshold,
+        max_value=225,
+        object_type=object_thresholds.gm_obj_type,
     )
 
-    # Now get the object masked by the image.
+    # Now get the object masked by the image...
     joined_mask = pcv.logical_and(bin_img1=by_thresh, bin_img2=gm_thresh)
+
+    # ... and do a small bit of filling before masking.
+    joined_mask = pcv.fill(bin_img=joined_mask, size=1000)
+
     masked = pcv.apply_mask(img=plant_img, mask=joined_mask, mask_color="white")
     reference_objects, obj_hierarchy = pcv.find_objects(img=masked, mask=joined_mask)
 
@@ -194,7 +217,11 @@ def do_plant_segmentation(img: np.ndarray, image_name: str) -> PlantFeature:
     # pcv.plot_image(image_analysis)
 
     return PlantFeature(
-        plant_obj=None, bg_mask=mask, rgb_image=img, analyzed_image=image_analysis, area=obj_area
+        plant_obj=None,
+        bg_mask=mask,
+        rgb_image=img,
+        analyzed_image=image_analysis,
+        area=obj_area,
     )
 
 
