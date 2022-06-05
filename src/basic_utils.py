@@ -1,13 +1,16 @@
-import cv2
-import glob
 import sys
-from typing import Union, List, Any, Optional, Dict
+from typing import Any, Optional, Dict
 from collections import namedtuple
 from pathlib import Path
 import numpy as np
 import pandas_bokeh as pbk
 from plantcv import plantcv as pcv
 import matplotlib
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 """Simple processing utilities"""
@@ -30,7 +33,7 @@ ColorThreshold = namedtuple(
 
 REF_THRESHOLDS: Dict[str, ColorThreshold] = {
     "blue": ColorThreshold(115, 105, "dark", "dark"),
-    "yellow": ColorThreshold(190, 125, "light", "dark"),
+    "yellow": ColorThreshold(190, 122, "light", "dark"),
 }
 
 
@@ -135,7 +138,7 @@ def find_reference_obj(
     joined_mask = pcv.logical_and(bin_img1=by_thresh, bin_img2=gm_thresh)
 
     # ... and do a small bit of filling before masking.
-    joined_mask = pcv.fill(bin_img=joined_mask, size=1000)
+    joined_mask = pcv.fill(bin_img=joined_mask, size=5000)
 
     masked = pcv.apply_mask(img=plant_img, mask=joined_mask, mask_color="white")
     reference_objects, obj_hierarchy = pcv.find_objects(img=masked, mask=joined_mask)
@@ -154,6 +157,10 @@ def find_reference_obj(
             pcv.outputs.observations[ref_obj_label][dimension]["value"]
             for dimension in ["width", "height"]
         ]
+    )
+
+    logger.info(
+        f"""A total of {round(pcv.outputs.observations[ref_obj_label]["area"]["value"] / (plant_img.shape[0]*plant_img.shape[1]) * 100, 2)}% of the {image_name} image is the reference obj."""
     )
 
     return ReferenceFeature(obj, mask, max_pixel_length, max_length_dim_inches)
@@ -214,7 +221,9 @@ def do_plant_segmentation(img: np.ndarray, image_name: str) -> PlantFeature:
 
     image_analysis = pcv.analyze_object(img=img, obj=obj, mask=mask, label=plant_label)
 
-    # pcv.plot_image(image_analysis)
+    logger.info(
+        f"""A total of {round(pcv.outputs.observations[plant_label]["area"]["value"] / (img.shape[0]*img.shape[1]) * 100, 2)}% of the image {image_name} is the plant."""
+    )
 
     return PlantFeature(
         plant_obj=None,
