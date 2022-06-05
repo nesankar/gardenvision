@@ -10,7 +10,6 @@ root = file_dir.parent.parent
 sys.path.append(str(root))
 
 from src import basic_utils, image_io
-from src.plant_image import PlantImage
 
 
 if __name__ == "__main__":
@@ -23,11 +22,11 @@ if __name__ == "__main__":
     )
 
     # extract the plants for each image
-    plants = [basic_utils.do_plant_segmentation(image.image) for image in tqdm(images)]
-
-    # plot the colors of the plants in each image
-    for i, plant in enumerate(plants):
-        basic_utils.do_color_analysis(plant, plot=True, plot_title=images[i].name)
-
-
-    bp=1
+    for image in images:
+        # do some simple tooling
+        image.plot_analyzed_plant()
+        print("\n")
+        print(f"The total area of the {image.name} plant is {round(image.plant_area_in2, 2)}.")
+        print(f"The {image.name} plant is {round(image.plant_length_in, 2)} inches by {round(image.plant_width_in, 2)} inches @ max.")
+        print("\n")
+        image.get_plant_color_spectrum(plot=True)
