@@ -19,7 +19,7 @@ sys.path.append(str(root))
 # PlantImage = namedtuple("PlantImage", ["image", "name"])
 BoxCords = namedtuple("BoxCords", ["ul_corner", "ur_corner", "ll_corner", "lr_corner"])
 PlantFeature = namedtuple(
-    "PlantFeature", ["plant_obj", "bg_mask", "rgb_image", "analyzed_image"]
+    "PlantFeature", ["plant_obj", "bg_mask", "rgb_image", "analyzed_image", "area"]
 )
 ReferenceFeature = namedtuple(
     "ReferenceFeature", ["reference_obj", "bg_mask", "max_pxl_length", "max_in_length"]
@@ -68,6 +68,34 @@ class PlantImage:
         )
 
         return reference_feature.max_pxl_length / reference_feature.max_in_length
+
+    @property
+    def plant_object(self):
+        if hasattr(self, "_plant_object"):
+            return self._plant_object
+        else:
+            self.extract_plant()
+            return self._plant_object
+
+    @property
+    def plant_size_data(self):
+        if hasattr(self, "_plant_size_data"):
+            return self._plant_size_data
+        else:
+            self.extract_plant()
+            return self._plant_size_data
+
+    def extract_plant(self) -> None:
+        """
+        Extract the plant from the image, providing a PlantFeature object. Simply a wrapper around the segmentation
+        function to set some attributes.
+        :return: PlantFeature object for the plant in the image
+        """
+        # Extract the plant from the image...
+        self._plant_object = do_plant_segmentation(self.image, self.name)
+
+        # and also get the plant image size data out of the plant_cv outputs
+        self._plant_size_data = pcv.outputs.observations[f"{self.name}_plant_obj"]
 
 
 def load_dir_images(
@@ -201,13 +229,15 @@ def find_reference_obj(
     return ReferenceFeature(obj, mask, max_pixel_length, max_length_dim_inches)
 
 
-def do_plant_segmentation(img: np.ndarray) -> PlantFeature:
+def do_plant_segmentation(img: np.ndarray, image_name: str) -> PlantFeature:
     """
     Perform the image segmentation pipeline to extract the plant from the background.
 
     :param img: a numpy ndarray defining the image
     :return: the plant object extracted using plantcv
     """
+
+    plant_label = f"{image_name}_plant_obj"
 
     # First, extract different color families, specifically the green/magenta family...
     gm_image = pcv.rgb2gray_lab(
@@ -252,12 +282,12 @@ def do_plant_segmentation(img: np.ndarray) -> PlantFeature:
         img=img, contours=region_objects, hierarchy=hierarchy
     )
 
-    image_analysis = pcv.analyze_object(img=img, obj=obj, mask=mask, label="default")
+    image_analysis = pcv.analyze_object(img=img, obj=obj, mask=mask, label=plant_label)
 
     # pcv.plot_image(image_analysis)
 
     return PlantFeature(
-        plant_obj=None, bg_mask=mask, rgb_image=img, analyzed_image=image_analysis
+        plant_obj=None, bg_mask=mask, rgb_image=img, analyzed_image=image_analysis, area=obj_area
     )
 
 
