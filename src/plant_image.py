@@ -10,6 +10,7 @@ from src.basic_utils import (
     do_color_analysis,
 )
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -21,11 +22,13 @@ class PlantImage:
         self,
         image: np.ndarray,
         name: str,
-        reference_obj_max_dim_in: Optional[int] = None,
+        ref_obj_color: str,
+        reference_obj_max_dim_in: Optional[float] = None,
     ):
 
         self.image = image
         self.name = name
+        self.ref_obj_color = ref_obj_color
         self.reference_obj_max_dim_in = reference_obj_max_dim_in
 
     @property
@@ -53,7 +56,7 @@ class PlantImage:
 
         logger.info(f"Calculating reference object length fpr {self.name}")
         reference_feature = find_reference_obj(
-            self.image, self.name, self.reference_obj_max_dim_in
+            self.image, self.name, self.ref_obj_color, self.reference_obj_max_dim_in
         )
 
         return reference_feature.max_pxl_length / reference_feature.max_in_length
@@ -127,8 +130,8 @@ class PlantImage:
 
         plant_total_area = plant_width_inches * plant_length_inches
 
-        plant_pixel_area = self._plant_object.area  # in pixels
-        fraction_growth = (plant_length_pxl * plant_length_pxl) / plant_pixel_area
+        plant_pixel_area = self.plant_object.area  # in pixels
+        fraction_growth = plant_pixel_area / (plant_length_pxl * plant_length_pxl)
 
         self._plant_width_in = plant_width_inches
         self._plant_length_in = plant_length_inches
