@@ -154,7 +154,9 @@ class PlantImage:
         :return: None
         """
         logger.info(f"Getting color spectrum analysis for {self.name}")
-        color_spectrum_df = do_color_analysis(self.plant_object, plot=plot, plot_title=self.name)
+        color_spectrum_df = do_color_analysis(
+            self.plant_object, plot=plot, plot_title=self.name
+        )
         self._color_spectrum_df = color_spectrum_df
 
     def plot_analyzed_plant(self) -> None:
