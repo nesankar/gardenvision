@@ -9,13 +9,14 @@ file_dir = Path(__file__)
 root = file_dir.parent.parent
 sys.path.append(str(root))
 
-from src import basic_utils
+from src import basic_utils, image_io
+from src.plant_image import PlantImage
 
 
 if __name__ == "__main__":
     img_path = root / "resources" / "misc_data" / "second_reference"
     img_type = "jpeg"
-    images = basic_utils.load_dir_images(img_path, img_type)
+    images = image_io.load_dir_images(img_path, img_type)
 
     print(
         f"""\nThe size of the images is {" x ".join([str(dim) for dim in images[0].image.shape])} pixels."""

@@ -26,27 +26,6 @@ ReferenceFeature = namedtuple(
 )
 
 
-def load_dir_images(
-    directory: Union[str, Path], file_type: str, tool: str = "plantcv"
-) -> List[PlantImage]:
-    """Given a directory and a file type load all images inside"""
-
-    # Get all files of file_type in the dir...
-    files = glob.glob(str(directory / f"*.{file_type}"))
-
-    # ... and then load and return the images as a list.
-    if tool == "plantcv":
-        return [
-            PlantImage(pcv.readimage(file)[0], file.split("/")[-1].split(".")[0])
-            for file in files
-        ]
-    else:
-        return [
-            PlantImage(cv2.imread(file), files.split("/")[-1].split(".")[0])
-            for file in files
-        ]
-
-
 def create_central_bounding_box(
     image: np.ndarray, pct_box_size: float = 0.125
 ) -> BoxCords:
